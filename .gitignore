@@ -1,0 +1,15 @@
+# Vite
+node_modules/
+/dist/
+
+# Yarn
+.yarn/
+yarn-error.log
+
+# CSS
+*.css.map
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
