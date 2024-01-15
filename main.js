@@ -1,7 +1,16 @@
-import ExcelJS from 'exceljs';
-import saveAs from 'file-saver';
-
 const calendarSlots = {
+  isHoliday: [
+    { start: "08:00", end: "12:00", doctorsRequired: 4 },
+    { start: "12:00", end: "16:00", doctorsRequired: 2 },
+    { start: "16:00", end: "20:00", doctorsRequired: 1 },
+    { start: "20:00", end: "00:00", doctorsRequired: 1 }
+  ],
+  holidayEve: [
+    { start: "08:00", end: "12:00", doctorsRequired: 3 },
+    { start: "12:00", end: "16:00", doctorsRequired: 2 },
+    { start: "16:00", end: "20:00", doctorsRequired: 2 },
+    { start: "20:00", end: "00:00", doctorsRequired: 2 }
+  ],
   isDuringSchoolHolidays: {
     isWeekDay: [
       { start: "08:00", end: "13:00", doctorsRequired: 2 },
@@ -9,7 +18,7 @@ const calendarSlots = {
       { start: "18:00", end: "22:00", doctorsRequired: 1 },
       { start: "18:00", end: "00:00", doctorsRequired: 1 }
     ],
-    weekEndAndHoliday: [
+    isweekEnd: [
       { start: "08:00", end: "12:00", doctorsRequired: 4 },
       { start: "12:00", end: "16:00", doctorsRequired: 2 },
       { start: "16:00", end: "20:00", doctorsRequired: 1 },
@@ -17,20 +26,20 @@ const calendarSlots = {
     ]
   },
   isNotDuringSchoolHolidays: {
-    isWeekDay: {
-      possibility1: [
+    isWeekDay: [
+      [
         { start: "08:00", end: "13:00", doctorsRequired: 1 },
         { start: "13:00", end: "18:00", doctorsRequired: 1 },
         { start: "18:00", end: "22:00", doctorsRequired: 1 },
         { start: "18:00", end: "00:00", doctorsRequired: 1 }
       ],
-      possibility2: [
+      [
         { start: "08:00", end: "14:00", doctorsRequired: 1 },
         { start: "14:00", end: "20:00", doctorsRequired: 1 },
         { start: "18:00", end: "22:00", doctorsRequired: 1 },
         { start: "20:00", end: "00:00", doctorsRequired: 1 }
       ]
-    },
+    ],
     saturday: [
       { start: "08:00", end: "12:00", doctorsRequired: 3 },
       { start: "12:00", end: "16:00", doctorsRequired: 2 },
@@ -43,19 +52,7 @@ const calendarSlots = {
       { start: "16:00", end: "20:00", doctorsRequired: 2 },
       { start: "20:00", end: "00:00", doctorsRequired: 1 }
     ],
-    holidayEve: [
-      { start: "08:00", end: "12:00", doctorsRequired: 3 },
-      { start: "12:00", end: "16:00", doctorsRequired: 2 },
-      { start: "16:00", end: "20:00", doctorsRequired: 2 },
-      { start: "20:00", end: "00:00", doctorsRequired: 2 }
-    ]
   },
-  isDuringSoloHoliday: [
-    { start: "08:00", end: "12:00", doctorsRequired: 3 },
-    { start: "12:00", end: "16:00", doctorsRequired: 2 },
-    { start: "16:00", end: "20:00", doctorsRequired: 2 },
-    { start: "20:00", end: "00:00", doctorsRequired: 1 }
-  ]
 }
 
 document.getElementById('month-selector').addEventListener('change', ({ target: { value: month, checked } }) => {
@@ -66,7 +63,7 @@ document.getElementById('month-selector').addEventListener('change', ({ target: 
   })
 }, { passive: true })
 
-const getSchoolHolidays = async (year) => {
+async function getSchoolHolidays(year) {
   const URL_API = `https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records?limit=20&refine=zones%3A%22Zone%20A%22&refine=location%3A%22Bordeaux%22&refine=population%3A%22-%22&refine=population%3A%22%C3%89l%C3%A8ves%22&refine=annee_scolaire%3A%22${year - 1}-${year}%22&refine=annee_scolaire%3A%22${year}-${year + 1}%22`
 
   const response = await fetch(URL_API)
@@ -75,11 +72,13 @@ const getSchoolHolidays = async (year) => {
   return results
 }
 
-const getHolidays = async (year) => {
+async function getHolidays(year) {
   const URL_API = `https://calendrier.api.gouv.fr/jours-feries/metropole/${year}.json`
 
   const response = await fetch(URL_API)
   const results = await response.json()
+
+  console.log(results)
 
   return results
 }
@@ -120,29 +119,29 @@ function getDaysNameOfTheYear(year) {
   return result
 }
 
-const isDateInRange = (date, range) => {
+function isDateInRange(date, range) {
   const startDate = range.start_date.split('T')[0]
   const endDate = range.end_date.split('T')[0]
   return date >= startDate && date <= endDate
 }
 
-const getSlotsForDay = (day, calendarSlots) => {
-  if (day.isSchoolHoliday) {
+function getSlotsForDay(day, calendarSlots) {
+  if (day.isHoliday) {
+    return calendarSlots.isHoliday;
+  } else if (day.isHolidayEve) {
+    return calendarSlots.holidayEve;
+  } else if (day.isSchoolHoliday) {
     return day.dayName === 'samedi' || day.dayName === 'dimanche' ?
-      calendarSlots.isDuringSchoolHolidays.weekEndAndHoliday :
-      calendarSlots.isDuringSchoolHolidays.isWeekDay
-  } else if (!day.isSchoolHoliday && !day.isHoliday) {
-    if (day.isHolidayEve) {
-      return calendarSlots.isNotDuringSchoolHolidays.holidayEve
-    } else if (day.dayName === 'samedi') {
-      return calendarSlots.isNotDuringSchoolHolidays.saturday
+      calendarSlots.isDuringSchoolHolidays.isweekEnd :
+      calendarSlots.isDuringSchoolHolidays.isWeekDay;
+  } else {
+    if (day.dayName === 'samedi') {
+      return calendarSlots.isNotDuringSchoolHolidays.saturday;
     } else if (day.dayName === 'dimanche') {
-      return calendarSlots.isNotDuringSchoolHolidays.sunday
+      return calendarSlots.isNotDuringSchoolHolidays.sunday;
     } else {
-      return calendarSlots.isNotDuringSchoolHolidays.isWeekDay.possibility1
+      return calendarSlots.isNotDuringSchoolHolidays.isWeekDay[0];
     }
-  } else if (day.isHoliday) {
-    return calendarSlots.isDuringSoloHoliday
   }
 }
 
@@ -196,25 +195,30 @@ function slotsToHTML(slots) {
   let currentMonth = null
   let openRow = false
   let dayOfWeek
+  let lastDate = null
 
   dates.forEach(date => {
     let dateObj = new Date(date)
     let month = dateObj.getMonth()
+
     if (month !== currentMonth) {
       if (currentMonth !== null) {
-        while (dayOfWeek < 6) {
+        while (dayOfWeek !== 0) {
           html += '<td></td>'
-          dayOfWeek++
+          dayOfWeek = (dayOfWeek + 1) % 7
         }
         html += '</tr>'
         html += '</table>'
       }
+
       html += `<h2>${dateObj.toLocaleString('default', { month: 'long' })}</h2>`
-      html += `<table data-month="${dateObj.getMonth()}"><tr><th>Dim</th><th>Lun</th><th>Mar</th><th>Mer</th><th>Jeu</th><th>Ven</th><th>Sam</th></tr>`
+      html += `<table data-month="${dateObj.getMonth()}"><tr><th>Lun</th><th>Mar</th><th>Mer</th><th>Jeu</th><th>Ven</th><th>Sam</th><th>Dim</th></tr>`
       currentMonth = month
       openRow = false
     }
-    dayOfWeek = dateObj.getDay()
+
+    dayOfWeek = (dateObj.getDay() + 6) % 7
+
     if (!openRow) {
       html += '<tr>'
       for (let i = 0; i < dayOfWeek; i++) {
@@ -222,8 +226,11 @@ function slotsToHTML(slots) {
       }
       openRow = true
     }
+
     html += '<td>'
+
     html += dateObj.getDate() + '<br>'
+
     slots[date].forEach((slot, i) => {
       html += `<div class="slot"><div class="time">${slot.start} - ${slot.end}</div>`
       for (let j = 0; j < slot.doctorsRequired; j++) {
@@ -231,21 +238,32 @@ function slotsToHTML(slots) {
       }
       html += '</div>'
     })
+
     html += '</td>'
+
     if (dayOfWeek === 6) {
       html += '</tr>'
       openRow = false
     }
+
+    lastDate = date
   })
 
   if (openRow) {
-    while (dayOfWeek < 6) {
-      html += '<td></td>'
-      dayOfWeek++
+    let lastDateOfMonth = new Date(lastDate);
+    lastDateOfMonth.setMonth(lastDateOfMonth.getMonth() + 1);
+    lastDateOfMonth.setDate(0);
+    let lastDayOfMonth = (lastDateOfMonth.getDay() + 6) % 7;
+
+    if (lastDayOfMonth !== 0) { // Change 6 to 0
+      while (dayOfWeek !== 0) { // Change 6 to 0
+        html += '<td></td>';
+        dayOfWeek = (dayOfWeek + 1) % 7;
+      }
     }
-    html += '</tr>'
+    html += '</tr>';
   }
-  html += '</table>'
+
   return html
 }
 
