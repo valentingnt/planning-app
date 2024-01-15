@@ -114,24 +114,24 @@ function isDateInRange(date, range) {
 }
 
 function getSlotsForDay(day, calendarSlots) {
-  const { isHoliday, isHolidayEve, isSchoolHoliday, dayName } = day;
-  const { isHoliday: holidaySlots, holidayEve, isDuringSchoolHolidays, isNotDuringSchoolHolidays } = calendarSlots;
+  const { isHoliday, isHolidayEve, isSchoolHoliday, dayName } = day
+  const { isHoliday: holidaySlots, holidayEve, isDuringSchoolHolidays, isNotDuringSchoolHolidays } = calendarSlots
 
-  if (isHoliday) return holidaySlots;
-  if (isHolidayEve) return holidayEve;
+  if (isHoliday) return holidaySlots
+  if (isHolidayEve) return holidayEve
 
   if (isSchoolHoliday) {
-    const isWeekend = dayName === 'samedi' || dayName === 'dimanche';
-    return isWeekend ? isDuringSchoolHolidays.isweekEnd : isDuringSchoolHolidays.isWeekDay;
+    const isWeekend = dayName === 'samedi' || dayName === 'dimanche'
+    return isWeekend ? isDuringSchoolHolidays.isweekEnd : isDuringSchoolHolidays.isWeekDay
   }
 
   switch (dayName) {
     case 'samedi':
-      return isNotDuringSchoolHolidays.saturday;
+      return isNotDuringSchoolHolidays.saturday
     case 'dimanche':
-      return isNotDuringSchoolHolidays.sunday;
+      return isNotDuringSchoolHolidays.sunday
     default:
-      return isNotDuringSchoolHolidays.isWeekDay[0];
+      return isNotDuringSchoolHolidays.isWeekDay[0]
   }
 }
 
@@ -193,11 +193,72 @@ async function createCalendar(year) {
   return slots
 }
 
+function createMonth(dateObj) {
+  let month = `<h2>${dateObj.toLocaleString('default', { month: 'long' })}</h2>`
+  month += `<table data-month="${dateObj.getMonth()}"><tr><th>Lun</th><th>Mar</th><th>Mer</th><th>Jeu</th><th>Ven</th><th>Sam</th><th>Dim</th></tr>`
+
+  return month
+}
+
+function createDay(dateObj) {
+  return `<td>${dateObj.getDate()}<br>`
+}
+
+function createSlot(slot) {
+  let slotHtml = `<div class="slot"><div class="time">${slot.start} - ${slot.end}</div>`
+
+  for (let j = 0; j < slot.doctorsRequired; j++) {
+    slotHtml += `<div class="doctor">Doctor ${j + 1}</div>`
+  }
+
+  slotHtml += '</div>'
+
+  return slotHtml
+}
+
+function fillEmptyDays(dayOfWeek) {
+  let emptyDays = ''
+  for (let i = 0; i < dayOfWeek; i++) {
+    emptyDays += '<td></td>'
+  }
+
+  return emptyDays
+}
+
+function startNewMonth(html, dateObj, dayOfWeek) {
+  html += '</tr></table>'
+  html += createMonth(dateObj)
+  html += '<tr>' + fillEmptyDays(dayOfWeek)
+
+  return html
+}
+
+function endMonth(html, dayOfWeek) {
+  if (dayOfWeek !== 0) {
+    html += fillEmptyDays(7 - dayOfWeek) + '</tr>'
+  }
+
+  html += '</table>'
+
+  return html
+}
+
+function startNewWeek(html) {
+  html += '</tr><tr>'
+
+  return html
+}
+
+function endWeek(html) {
+  html += '</tr>'
+
+  return html
+}
+
 function slotsToHTML(slots) {
   let html = ''
   let dates = Object.keys(slots).sort()
   let currentMonth = null
-  let openRow = false
   let dayOfWeek
   let lastDate = null
 
@@ -207,66 +268,34 @@ function slotsToHTML(slots) {
 
     if (month !== currentMonth) {
       if (currentMonth !== null) {
-        while (dayOfWeek !== 0) {
-          html += '<td></td>'
-          dayOfWeek = (dayOfWeek + 1) % 7
-        }
-        html += '</tr>'
-        html += '</table>'
+        html = endMonth(html, dayOfWeek)
       }
 
-      html += `<h2>${dateObj.toLocaleString('default', { month: 'long' })}</h2>`
-      html += `<table data-month="${dateObj.getMonth()}"><tr><th>Lun</th><th>Mar</th><th>Mer</th><th>Jeu</th><th>Ven</th><th>Sam</th><th>Dim</th></tr>`
+      dayOfWeek = (dateObj.getDay() + 6) % 7
+      html = startNewMonth(html, dateObj, dayOfWeek)
       currentMonth = month
-      openRow = false
     }
 
-    dayOfWeek = (dateObj.getDay() + 6) % 7
-
-    if (!openRow) {
-      html += '<tr>'
-      for (let i = 0; i < dayOfWeek; i++) {
-        html += '<td></td>'
-      }
-      openRow = true
-    }
-
-    html += '<td>'
-
-    html += dateObj.getDate() + '<br>'
+    html += createDay(dateObj)
 
     slots[date].forEach((slot, i) => {
-      html += `<div class="slot"><div class="time">${slot.start} - ${slot.end}</div>`
-      for (let j = 0; j < slot.doctorsRequired; j++) {
-        html += `<div class="doctor">Doctor ${j + 1}</div>`
-      }
-      html += '</div>'
+      html += createSlot(slot)
     })
 
     html += '</td>'
 
-    if (dayOfWeek === 6) {
-      html += '</tr>'
-      openRow = false
+    dayOfWeek = (dayOfWeek + 1) % 7
+    if (dayOfWeek === 0) {
+      html = endWeek(html)
+      if (date !== dates[dates.length - 1]) {
+        html = startNewWeek(html)
+      }
     }
 
     lastDate = date
   })
 
-  if (openRow) {
-    let lastDateOfMonth = new Date(lastDate);
-    lastDateOfMonth.setMonth(lastDateOfMonth.getMonth() + 1);
-    lastDateOfMonth.setDate(0);
-    let lastDayOfMonth = (lastDateOfMonth.getDay() + 6) % 7;
-
-    if (lastDayOfMonth !== 0) {
-      while (dayOfWeek !== 0) {
-        html += '<td></td>';
-        dayOfWeek = (dayOfWeek + 1) % 7;
-      }
-    }
-    html += '</tr>';
-  }
+  html = endMonth(html, dayOfWeek)
 
   return html
 }
@@ -278,31 +307,31 @@ createCalendar(2024).then((slots) => {
 })
 
 async function downloadExcelFile(slots, selectedMonths) {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('Calendar');
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Calendar')
 
   worksheet.columns = [
     { header: 'Date', key: 'date' },
     { header: 'Slots', key: 'slots' },
-  ];
+  ]
 
   for (const date in slots) {
-    const month = date.split('-')[1];
+    const month = date.split('-')[1]
     if (selectedMonths.includes(month)) {
-      const slotData = slots[date].map(slot => `${slot.start} - ${slot.end}`).join(', ');
-      worksheet.addRow({ date, slots: slotData });
+      const slotData = slots[date].map(slot => `${slot.start} - ${slot.end}`).join(', ')
+      worksheet.addRow({ date, slots: slotData })
     }
   }
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
 
-  saveAs(blob, 'Calendar.xlsx');
+  saveAs(blob, 'Calendar.xlsx')
 }
 
 function downloadSelectedView() {
-  const selectedMonths = Array.from(document.querySelectorAll('#month-selector input:checked')).map(input => input.value);
+  const selectedMonths = Array.from(document.querySelectorAll('#month-selector input:checked')).map(input => input.value)
   createCalendar(2024).then((slots) => {
-    downloadExcelFile(slots, selectedMonths);
-  });
+    downloadExcelFile(slots, selectedMonths)
+  })
 }
