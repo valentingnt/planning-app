@@ -1,3 +1,6 @@
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
+
 const calendarSlots = {
   isHoliday: [
     { start: "08:00", end: "12:00", doctorsRequired: 4 },
@@ -55,7 +58,9 @@ const calendarSlots = {
   },
 }
 
-document.getElementById('month-selector').addEventListener('change', ({ target: { value: month, checked } }) => {
+const monthSelector = document.getElementById('month-selector')
+
+monthSelector.addEventListener('change', ({ target: { value: month, checked } }) => {
   document.querySelectorAll('table').forEach(table => {
     if (table.getAttribute('data-month') === month) {
       table.style.display = checked ? 'table' : 'none'
@@ -65,7 +70,6 @@ document.getElementById('month-selector').addEventListener('change', ({ target: 
 
 async function getSchoolHolidays(year) {
   const URL_API = `https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records?limit=20&refine=zones%3A%22Zone%20A%22&refine=location%3A%22Bordeaux%22&refine=population%3A%22-%22&refine=population%3A%22%C3%89l%C3%A8ves%22&refine=annee_scolaire%3A%22${year - 1}-${year}%22&refine=annee_scolaire%3A%22${year}-${year + 1}%22`
-
   const response = await fetch(URL_API)
   const { results } = await response.json()
 
@@ -74,32 +78,15 @@ async function getSchoolHolidays(year) {
 
 async function getHolidays(year) {
   const URL_API = `https://calendrier.api.gouv.fr/jours-feries/metropole/${year}.json`
-
   const response = await fetch(URL_API)
   const results = await response.json()
-
-  console.log(results)
 
   return results
 }
 
 function getDaysNameOfTheYear(year) {
   const result = {}
-
-  const months = [
-    "01",
-    "02",
-    "03",
-    "04",
-    "05",
-    "06",
-    "07",
-    "08",
-    "09",
-    "10",
-    "11",
-    "12"
-  ]
+  const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
 
   for (let month = 0; month < 12; month++) {
     const monthNumber = months[month]
@@ -122,26 +109,29 @@ function getDaysNameOfTheYear(year) {
 function isDateInRange(date, range) {
   const startDate = range.start_date.split('T')[0]
   const endDate = range.end_date.split('T')[0]
-  return date >= startDate && date <= endDate
+
+  return date > startDate && date <= endDate
 }
 
 function getSlotsForDay(day, calendarSlots) {
-  if (day.isHoliday) {
-    return calendarSlots.isHoliday;
-  } else if (day.isHolidayEve) {
-    return calendarSlots.holidayEve;
-  } else if (day.isSchoolHoliday) {
-    return day.dayName === 'samedi' || day.dayName === 'dimanche' ?
-      calendarSlots.isDuringSchoolHolidays.isweekEnd :
-      calendarSlots.isDuringSchoolHolidays.isWeekDay;
-  } else {
-    if (day.dayName === 'samedi') {
-      return calendarSlots.isNotDuringSchoolHolidays.saturday;
-    } else if (day.dayName === 'dimanche') {
-      return calendarSlots.isNotDuringSchoolHolidays.sunday;
-    } else {
-      return calendarSlots.isNotDuringSchoolHolidays.isWeekDay[0];
-    }
+  const { isHoliday, isHolidayEve, isSchoolHoliday, dayName } = day;
+  const { isHoliday: holidaySlots, holidayEve, isDuringSchoolHolidays, isNotDuringSchoolHolidays } = calendarSlots;
+
+  if (isHoliday) return holidaySlots;
+  if (isHolidayEve) return holidayEve;
+
+  if (isSchoolHoliday) {
+    const isWeekend = dayName === 'samedi' || dayName === 'dimanche';
+    return isWeekend ? isDuringSchoolHolidays.isweekEnd : isDuringSchoolHolidays.isWeekDay;
+  }
+
+  switch (dayName) {
+    case 'samedi':
+      return isNotDuringSchoolHolidays.saturday;
+    case 'dimanche':
+      return isNotDuringSchoolHolidays.sunday;
+    default:
+      return isNotDuringSchoolHolidays.isWeekDay[0];
   }
 }
 
@@ -166,14 +156,28 @@ async function createCalendar(year) {
     days.forEach(day => {
       const dayName = daysNameOfTheYear[month][day]
       const date = `${year}-${month}-${day}`
-
-      const isHoliday = holidaysLookup[date] !== undefined
+      const currentDate = new Date(year, month - 1, day)
+      currentDate.setDate(currentDate.getDate() + 1)
+      const dateAfter = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
+      currentDate.setDate(currentDate.getDate() - 2)
+      const dateBefore = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
+      let isHoliday = holidaysLookup[date] !== undefined
       const isSchoolHoliday = Object.values(schoolHolidaysLookup).some(holiday => isDateInRange(date, holiday))
+      const isHolidayEve = holidaysLookup[dateAfter] !== undefined
+
+      if (holidaysLookup[dateAfter] !== undefined && new Date(dateAfter).getDay() === 2) {
+        isHoliday = true
+      }
+
+      if (holidaysLookup[dateBefore] !== undefined && new Date(dateBefore).getDay() === 4) {
+        isHoliday = true
+      }
 
       acc[date] = {
         dayName,
         isHoliday,
-        isSchoolHoliday
+        isSchoolHoliday,
+        isHolidayEve
       }
     })
 
@@ -255,8 +259,8 @@ function slotsToHTML(slots) {
     lastDateOfMonth.setDate(0);
     let lastDayOfMonth = (lastDateOfMonth.getDay() + 6) % 7;
 
-    if (lastDayOfMonth !== 0) { // Change 6 to 0
-      while (dayOfWeek !== 0) { // Change 6 to 0
+    if (lastDayOfMonth !== 0) {
+      while (dayOfWeek !== 0) {
         html += '<td></td>';
         dayOfWeek = (dayOfWeek + 1) % 7;
       }
@@ -270,7 +274,35 @@ function slotsToHTML(slots) {
 
 createCalendar(2024).then((slots) => {
   const html = slotsToHTML(slots)
-
   document.getElementById('calendar').innerHTML = html
-
 })
+
+async function downloadExcelFile(slots, selectedMonths) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Calendar');
+
+  worksheet.columns = [
+    { header: 'Date', key: 'date' },
+    { header: 'Slots', key: 'slots' },
+  ];
+
+  for (const date in slots) {
+    const month = date.split('-')[1];
+    if (selectedMonths.includes(month)) {
+      const slotData = slots[date].map(slot => `${slot.start} - ${slot.end}`).join(', ');
+      worksheet.addRow({ date, slots: slotData });
+    }
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+  saveAs(blob, 'Calendar.xlsx');
+}
+
+function downloadSelectedView() {
+  const selectedMonths = Array.from(document.querySelectorAll('#month-selector input:checked')).map(input => input.value);
+  createCalendar(2024).then((slots) => {
+    downloadExcelFile(slots, selectedMonths);
+  });
+}

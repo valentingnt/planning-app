@@ -4,6 +4,7 @@
 
 body {
   font-family: Arial, sans-serif;
+  padding-top: 50px;
 }
 
 table {
@@ -74,4 +75,14 @@ th {
 
 .doctor {
   margin-top: 5px;
+}
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background-color: #f8f9fa;
+  padding: 10px;
+  z-index: 1;
 }
