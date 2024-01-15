@@ -201,7 +201,7 @@ function createMonth(dateObj) {
 }
 
 function createDay(dateObj) {
-  return `<td>${dateObj.getDate()}<br>`
+  return `<td class="day"><p class="days-number">${dateObj.getDate()}</p><br>`
 }
 
 function createSlot(slot) {

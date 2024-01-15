@@ -11,7 +11,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  border-radius: 5px;
+  border-radius: 10px;
   overflow: hidden;
   table-layout: fixed;
 }
@@ -23,9 +23,11 @@ td {
   border: 1px solid #ccc;
 }
 
-td {
-  padding: 10px;
-  position: relative;
+.days-number {
+  font-size: 12px;
+  background-color: #4c68af;
+  color: white;
+  padding: 2px 5px;
 }
 
 tr {
@@ -46,14 +48,12 @@ th {
 .doctor-grid {
   display: grid;
   grid-template-rows: repeat(var(--doctors), 1fr);
-  gap: 10px;
 }
 
 .doctor-cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #ddd;
   padding: 5px;
   border-radius: 5px;
   background-color: #e8e8e8;
@@ -74,7 +74,12 @@ th {
 }
 
 .doctor {
-  margin-top: 5px;
+  font-weight: bold;
+  border-top: 1px solid #ddd;
+}
+
+.doctor:first-child {
+  border-top: none;
 }
 
 .header {
