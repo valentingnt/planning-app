@@ -363,7 +363,20 @@ async function createExcelFile(slots) {
     // In the first row of the group, merge the 4 cells and write the day
     if (!worksheet.getCell(rowIndex, dayColumnStart).isMerged) {
       worksheet.mergeCells(rowIndex, dayColumnStart, rowIndex, dayColumnEnd);
-      worksheet.getCell(rowIndex, dayColumnStart).value = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+      const cell = worksheet.getCell(rowIndex, dayColumnStart);
+      cell.value = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+      // Set font size, alignment, bold, italic, and cell height
+      cell.font = {
+        size: 16,
+        bold: true,
+        italic: true
+      };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center'
+      };
+
+      worksheet.getRow(rowIndex).height = 50;
     }
 
     // In the second row of the group, write the 4 hours period in each cell
