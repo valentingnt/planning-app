@@ -6,26 +6,26 @@ const calendarSlots = {
     { start: "08:00", end: "12:00", doctorsRequired: 4 },
     { start: "12:00", end: "16:00", doctorsRequired: 2 },
     { start: "16:00", end: "20:00", doctorsRequired: 1 },
-    { start: "20:00", end: "00:00", doctorsRequired: 1 }
+    { start: "20:00", end: "24:00", doctorsRequired: 1 }
   ],
   holidayEve: [
     { start: "08:00", end: "12:00", doctorsRequired: 3 },
     { start: "12:00", end: "16:00", doctorsRequired: 2 },
     { start: "16:00", end: "20:00", doctorsRequired: 2 },
-    { start: "20:00", end: "00:00", doctorsRequired: 2 }
+    { start: "20:00", end: "24:00", doctorsRequired: 2 }
   ],
   isDuringSchoolHolidays: {
     isWeekDay: [
       { start: "08:00", end: "13:00", doctorsRequired: 2 },
       { start: "13:00", end: "18:00", doctorsRequired: 2 },
       { start: "18:00", end: "22:00", doctorsRequired: 1 },
-      { start: "18:00", end: "00:00", doctorsRequired: 1 }
+      { start: "18:00", end: "24:00", doctorsRequired: 1 }
     ],
     isweekEnd: [
       { start: "08:00", end: "12:00", doctorsRequired: 4 },
       { start: "12:00", end: "16:00", doctorsRequired: 2 },
       { start: "16:00", end: "20:00", doctorsRequired: 1 },
-      { start: "20:00", end: "00:00", doctorsRequired: 1 }
+      { start: "20:00", end: "24:00", doctorsRequired: 1 }
     ]
   },
   isNotDuringSchoolHolidays: {
@@ -34,26 +34,26 @@ const calendarSlots = {
         { start: "08:00", end: "13:00", doctorsRequired: 1 },
         { start: "13:00", end: "18:00", doctorsRequired: 1 },
         { start: "18:00", end: "22:00", doctorsRequired: 1 },
-        { start: "18:00", end: "00:00", doctorsRequired: 1 }
+        { start: "18:00", end: "24:00", doctorsRequired: 1 }
       ],
       [
         { start: "08:00", end: "14:00", doctorsRequired: 1 },
         { start: "14:00", end: "20:00", doctorsRequired: 1 },
         { start: "18:00", end: "22:00", doctorsRequired: 1 },
-        { start: "20:00", end: "00:00", doctorsRequired: 1 }
+        { start: "20:00", end: "24:00", doctorsRequired: 1 }
       ]
     ],
     saturday: [
       { start: "08:00", end: "12:00", doctorsRequired: 3 },
       { start: "12:00", end: "16:00", doctorsRequired: 2 },
       { start: "16:00", end: "20:00", doctorsRequired: 2 },
-      { start: "20:00", end: "00:00", doctorsRequired: 2 }
+      { start: "20:00", end: "24:00", doctorsRequired: 2 }
     ],
     sunday: [
       { start: "08:00", end: "12:00", doctorsRequired: 3 },
       { start: "12:00", end: "16:00", doctorsRequired: 2 },
       { start: "16:00", end: "20:00", doctorsRequired: 2 },
-      { start: "20:00", end: "00:00", doctorsRequired: 1 }
+      { start: "20:00", end: "24:00", doctorsRequired: 1 }
     ],
   },
 }
@@ -315,26 +315,44 @@ async function createExcelFile(slots) {
   let rowIndex = 2; // Start from the second row to leave space for headers
   let columnWidths = Array(28).fill(10); // 7 days * 4 columns per day
 
-  // Convert slots into an array of objects
-  const data = Object.entries(slots).map(([date, slots]) => ({ date, slots }));
+  // Convert slots into an array of objects and sort by date
+  const data = Object.entries(slots)
+    .map(([date, slots]) => ({ date, slots }))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   for (const { date, slots: slotArray } of data) {
     const dateObj = new Date(date);
     const month = dateObj.getMonth();
-    const dayOfWeek = dateObj.getDay();
+    const dayOfWeek = (dateObj.getDay() + 6) % 7;
 
     // Create a new worksheet for each month
     if (month !== currentMonth) {
       currentMonth = month;
-      const monthYear = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      const monthYear = dateObj.toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
       worksheet = workbook.addWorksheet(monthYear);
       rowIndex = 2; // Reset row index
 
       // Add headers for the days of the week
-      const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const daysOfWeek = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
       for (let i = 0; i < 7; i++) {
-        worksheet.mergeCells(1, (i * 4) + 1, 1, (i * 4) + 4);
-        worksheet.getCell(1, (i * 4) + 1).value = daysOfWeek[i];
+        const startColumn = (i * 4) + 1;
+        const endColumn = startColumn + 3;
+        // Check if cells are already merged
+        if (!worksheet.getCell(1, startColumn).isMerged) {
+          worksheet.mergeCells(1, startColumn, 1, endColumn);
+          const cell = worksheet.getCell(1, startColumn);
+          cell.value = daysOfWeek[i];
+          // Set fill and font color
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4C68AF' }
+          };
+          cell.font = {
+            color: { argb: 'FFFFFFFF' },
+            size: 24,
+          };
+        }
       }
     }
 
@@ -343,8 +361,10 @@ async function createExcelFile(slots) {
     const dayColumnEnd = dayColumnStart + 3;
 
     // In the first row of the group, merge the 4 cells and write the day
-    worksheet.mergeCells(rowIndex, dayColumnStart, rowIndex, dayColumnEnd);
-    worksheet.getCell(rowIndex, dayColumnStart).value = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    if (!worksheet.getCell(rowIndex, dayColumnStart).isMerged) {
+      worksheet.mergeCells(rowIndex, dayColumnStart, rowIndex, dayColumnEnd);
+      worksheet.getCell(rowIndex, dayColumnStart).value = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    }
 
     // In the second row of the group, write the 4 hours period in each cell
     for (let i = 0; i < 4; i++) {
@@ -359,7 +379,10 @@ async function createExcelFile(slots) {
       }
     }
 
-    rowIndex += 6; // Move to the next group of rows
+    // Move to the next group of rows after Sunday
+    if (dayOfWeek === 6) {
+      rowIndex += 6;
+    }
   }
 
   // Adjust column widths
