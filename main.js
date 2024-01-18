@@ -304,34 +304,68 @@ function slotsToHTML(slots) {
 createCalendar(2024).then((slots) => {
   const html = slotsToHTML(slots)
   document.getElementById('calendar').innerHTML = html
+
+  createExcelFile(slots)
 })
 
-async function downloadExcelFile(slots, selectedMonths) {
-  const workbook = new ExcelJS.Workbook()
-  const worksheet = workbook.addWorksheet('Calendar')
+async function createExcelFile(slots) {
+  const workbook = new ExcelJS.Workbook();
+  let worksheet;
+  let currentMonth;
+  let rowIndex = 2; // Start from the second row to leave space for headers
+  let columnWidths = Array(28).fill(10); // 7 days * 4 columns per day
 
-  worksheet.columns = [
-    { header: 'Date', key: 'date' },
-    { header: 'Slots', key: 'slots' },
-  ]
+  // Convert slots into an array of objects
+  const data = Object.entries(slots).map(([date, slots]) => ({ date, slots }));
 
-  for (const date in slots) {
-    const month = date.split('-')[1]
-    if (selectedMonths.includes(month)) {
-      const slotData = slots[date].map(slot => `${slot.start} - ${slot.end}`).join(', ')
-      worksheet.addRow({ date, slots: slotData })
+  for (const { date, slots: slotArray } of data) {
+    const dateObj = new Date(date);
+    const month = dateObj.getMonth();
+    const dayOfWeek = dateObj.getDay();
+
+    // Create a new worksheet for each month
+    if (month !== currentMonth) {
+      currentMonth = month;
+      const monthYear = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      worksheet = workbook.addWorksheet(monthYear);
+      rowIndex = 2; // Reset row index
+
+      // Add headers for the days of the week
+      const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      for (let i = 0; i < 7; i++) {
+        worksheet.mergeCells(1, (i * 4) + 1, 1, (i * 4) + 4);
+        worksheet.getCell(1, (i * 4) + 1).value = daysOfWeek[i];
+      }
     }
+
+    // For each day, create a group of 4 columns and 6 rows
+    const dayColumnStart = (dayOfWeek * 4) + 1;
+    const dayColumnEnd = dayColumnStart + 3;
+
+    // In the first row of the group, merge the 4 cells and write the day
+    worksheet.mergeCells(rowIndex, dayColumnStart, rowIndex, dayColumnEnd);
+    worksheet.getCell(rowIndex, dayColumnStart).value = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+
+    // In the second row of the group, write the 4 hours period in each cell
+    for (let i = 0; i < 4; i++) {
+      worksheet.getCell(rowIndex + 1, dayColumnStart + i).value = `${slotArray[i].start}-${slotArray[i].end}`;
+    }
+
+    // In the remaining rows of the group, fill as many cells as the doctorsRequired number for each hour period
+    for (let i = 0; i < 4; i++) {
+      const doctorsRequired = slotArray[i].doctorsRequired;
+      for (let j = 0; j < doctorsRequired; j++) {
+        worksheet.getCell(rowIndex + 2 + j, dayColumnStart + i).value = `Doctor ${j + 1}`;
+      }
+    }
+
+    rowIndex += 6; // Move to the next group of rows
   }
 
-  const buffer = await workbook.xlsx.writeBuffer()
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  // Adjust column widths
+  worksheet.columns = columnWidths.map(width => ({ width }));
 
-  saveAs(blob, 'Calendar.xlsx')
-}
-
-function downloadSelectedView() {
-  const selectedMonths = Array.from(document.querySelectorAll('#month-selector input:checked')).map(input => input.value)
-  createCalendar(2024).then((slots) => {
-    downloadExcelFile(slots, selectedMonths)
-  })
+  // Download the file
+  const file = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([file]), 'Schedule.xlsx');
 }
