@@ -91,6 +91,7 @@ monthSelector.addEventListener('change', ({ target: { value: month, checked } })
 }, { passive: true })
 
 generatePlanningButton.addEventListener('click', () => {
+  generatePlanningButton.innerHTML = '⚙️ Génération en cours...'
   const selectedYear = parseInt(yearSelector.value)
 
   createCalendar(selectedYear).then((slots) => {
@@ -405,5 +406,7 @@ async function createExcelFile(slots, selectedMonths = null) {
 
   const file = await workbook.xlsx.writeBuffer();
 
-  saveAs(new Blob([file]), 'Schedule.xlsx');
+  saveAs(new Blob([file]), `planning_${yearSelector.value}_${new Date().getUTCDate()}-${new Date().getUTCMonth() + 1}-${new Date().getUTCFullYear()}.xlsx`);
+
+  generatePlanningButton.innerHTML = '⚙️ Générer le planning';
 }
