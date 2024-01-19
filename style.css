@@ -75,3 +75,8 @@ button:hover {
   display: flex;
   justify-content: center;
 }
+
+.legal-information {
+  font-size: 10px;
+  margin-top: 20px;
+}
