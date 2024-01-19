@@ -9,7 +9,10 @@
 </head>
 
 <body>
+  <h1>Planning des médecins régulateurs</h1>
+
   <div class="header">
+    <h2>Choisissez les mois:</h2>
     <form id="month-selector">
       <label><input type="checkbox" value="0" checked> Janvier</label>
       <label><input type="checkbox" value="1" checked> Février</label>
@@ -24,10 +27,25 @@
       <label><input type="checkbox" value="10" checked> Novembre</label>
       <label><input type="checkbox" value="11" checked> Décembre</label>
     </form>
-    <button id="download-view" onclick="downloadCsvFile()">Télécharger les mois sélectionnés</button>
-  </div>
 
-  <div id="calendar"></div>
+    <h2>Choisissez l'année:</h2>
+    <input id="year-selector" type="number" minlength="4" maxlength="4" min="2000" max="2100" value="2024">
+
+    <h2>🧑‍⚕️ Entrez le noms des médecins:</h2>
+    <p>⚠️ Chaque médecin doit être écrit séparés par des virgules. Par ex:</p>
+    <pre>“Dr. Dupont, Jean-Jacques Martin, Dr. Amélie Durand“</pre>
+
+    <input type="text" size="50" placeholder="Dr. Dupont, Jean-Jacques Martin, Dr. Amélie Durand, ..."
+      id="doctors-list-input">
+    <input type="button" value="Ajouter" id="add-doctor">
+
+    <h3>List actuelle:</h3>
+    <p id="current-doctors-list">
+      Aucun médecin n'a encore été ajouté.
+    </p>
+
+    <button id="download-planning">⚙️ Générer le planning</button>
+  </div>
   <script src="main.js" type="module"></script>
 </body>
 

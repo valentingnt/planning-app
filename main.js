@@ -1,7 +1,9 @@
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 
-const calendarSlots = {
+let DOCTOR_NAMES = []
+const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const CALENDAR_SLOTS = {
   isHoliday: [
     { start: "08:00", end: "12:00", doctorsRequired: 4 },
     { start: "12:00", end: "16:00", doctorsRequired: 2 },
@@ -58,7 +60,27 @@ const calendarSlots = {
   },
 }
 
+const yearSelector = document.getElementById('year-selector')
 const monthSelector = document.getElementById('month-selector')
+const generatePlanningButton = document.getElementById('download-planning')
+const doctorsList = document.getElementById('doctors-list-input')
+const addDoctorsListButton = document.getElementById('add-doctor')
+const currentDoctorsListPlaceholder = document.getElementById('current-doctors-list')
+
+addDoctorsListButton.addEventListener('click', () => {
+  const doctorName = doctorsList.value
+
+  if (doctorName) {
+    DOCTOR_NAMES = doctorName.split(',').map(name => name.trim())
+
+    currentDoctorsListPlaceholder.innerHTML = DOCTOR_NAMES.map(name => `<li>${name}</li>`).join('')
+  } else {
+    currentDoctorsListPlaceholder.innerHTML = "Aucun médecin n'a encore été ajouté."
+  }
+
+}, { passive: true })
+
+yearSelector.setAttribute('selected', true)
 
 monthSelector.addEventListener('change', ({ target: { value: month, checked } }) => {
   document.querySelectorAll('table').forEach(table => {
@@ -67,6 +89,17 @@ monthSelector.addEventListener('change', ({ target: { value: month, checked } })
     }
   })
 }, { passive: true })
+
+generatePlanningButton.addEventListener('click', () => {
+  const selectedYear = parseInt(yearSelector.value)
+
+  createCalendar(selectedYear).then((slots) => {
+    const selectedMonths = Array.from(monthSelector.querySelectorAll('input:checked')).map(input => parseInt(input.value))
+
+    createExcelFile(slots, selectedMonths)
+  })
+}, { passive: true })
+
 
 async function getSchoolHolidays(year) {
   const URL_API = `https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records?limit=20&refine=zones%3A%22Zone%20A%22&refine=location%3A%22Bordeaux%22&refine=population%3A%22-%22&refine=population%3A%22%C3%89l%C3%A8ves%22&refine=annee_scolaire%3A%22${year - 1}-${year}%22&refine=annee_scolaire%3A%22${year}-${year + 1}%22`
@@ -90,12 +123,15 @@ function getDaysNameOfTheYear(year) {
 
   for (let month = 0; month < 12; month++) {
     const monthNumber = months[month]
+
     result[monthNumber] = {}
 
     for (let day = 1; day <= 31; day++) {
       const date = new Date(`${year}-${month + 1}-${day}`)
+
       if (date.getFullYear() === year && date.getMonth() === month) {
         const dayName = date.toLocaleDateString("us-US", { weekday: "long" }).toLowerCase()
+
         result[monthNumber][day.toString().padStart(2, "0")] = dayName
       } else {
         break
@@ -139,14 +175,15 @@ async function createCalendar(year) {
   const schoolHolidays = await getSchoolHolidays(year)
   const holidays = await getHolidays(year)
   const daysNameOfTheYear = getDaysNameOfTheYear(year)
-
   const schoolHolidaysLookup = schoolHolidays.reduce((acc, holiday) => {
     acc[holiday.start_date.split('T')[0]] = holiday
+
     return acc
   }, {})
 
   const holidaysLookup = Object.keys(holidays).reduce((acc, holiday) => {
     acc[holiday] = true
+
     return acc
   }, {})
 
@@ -157,10 +194,13 @@ async function createCalendar(year) {
       const dayName = daysNameOfTheYear[month][day]
       const date = `${year}-${month}-${day}`
       const currentDate = new Date(year, month - 1, day)
+
       currentDate.setDate(currentDate.getDate() + 1)
       const dateAfter = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
+
       currentDate.setDate(currentDate.getDate() - 2)
       const dateBefore = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
+
       let isHoliday = holidaysLookup[date] !== undefined
       const isSchoolHoliday = Object.values(schoolHolidaysLookup).some(holiday => isDateInRange(date, holiday))
       const isHolidayEve = holidaysLookup[dateAfter] !== undefined
@@ -186,136 +226,125 @@ async function createCalendar(year) {
 
   const slots = Object.keys(calendar).reduce((acc, date) => {
     const day = calendar[date]
-    acc[date] = getSlotsForDay(day, calendarSlots)
+
+    acc[date] = getSlotsForDay(day, CALENDAR_SLOTS)
+
     return acc
   }, {})
 
   return slots
 }
 
-function createMonth(dateObj) {
-  let month = `<h2>${dateObj.toLocaleString('default', { month: 'long' })}</h2>`
-  month += `<table data-month="${dateObj.getMonth()}"><tr><th>Lun</th><th>Mar</th><th>Mer</th><th>Jeu</th><th>Ven</th><th>Sam</th><th>Dim</th></tr>`
+function createHeaders(worksheet) {
+  for (let i = 0; i < 7; i++) {
+    const startColumn = (i * 4) + 1;
+    const endColumn = startColumn + 3;
 
-  return month
-}
+    if (!worksheet.getCell(1, startColumn).isMerged) {
+      const cell = worksheet.getCell(1, startColumn);
 
-function createDay(dateObj) {
-  return `<td class="day"><p class="days-number">${dateObj.getDate()}</p><br>`
-}
+      worksheet.mergeCells(1, startColumn, 1, endColumn);
 
-function createSlot(slot) {
-  let slotHtml = `<div class="slot"><div class="time">${slot.start} - ${slot.end}</div>`
-
-  for (let j = 0; j < slot.doctorsRequired; j++) {
-    slotHtml += `<div class="doctor">Doctor ${j + 1}</div>`
-  }
-
-  slotHtml += '</div>'
-
-  return slotHtml
-}
-
-function fillEmptyDays(dayOfWeek) {
-  let emptyDays = ''
-  for (let i = 0; i < dayOfWeek; i++) {
-    emptyDays += '<td></td>'
-  }
-
-  return emptyDays
-}
-
-function startNewMonth(html, dateObj, dayOfWeek) {
-  html += '</tr></table>'
-  html += createMonth(dateObj)
-  html += '<tr>' + fillEmptyDays(dayOfWeek)
-
-  return html
-}
-
-function endMonth(html, dayOfWeek) {
-  if (dayOfWeek !== 0) {
-    html += fillEmptyDays(7 - dayOfWeek) + '</tr>'
-  }
-
-  html += '</table>'
-
-  return html
-}
-
-function startNewWeek(html) {
-  html += '</tr><tr>'
-
-  return html
-}
-
-function endWeek(html) {
-  html += '</tr>'
-
-  return html
-}
-
-function slotsToHTML(slots) {
-  let html = ''
-  let dates = Object.keys(slots).sort()
-  let currentMonth = null
-  let dayOfWeek
-  let lastDate = null
-
-  dates.forEach(date => {
-    let dateObj = new Date(date)
-    let month = dateObj.getMonth()
-
-    if (month !== currentMonth) {
-      if (currentMonth !== null) {
-        html = endMonth(html, dayOfWeek)
-      }
-
-      dayOfWeek = (dateObj.getDay() + 6) % 7
-      html = startNewMonth(html, dateObj, dayOfWeek)
-      currentMonth = month
+      cell.value = DAYS_OF_WEEK[i];
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF4C68AF' }
+      };
+      cell.font = {
+        color: { argb: 'FFFFFFFF' },
+        size: 24,
+      };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center'
+      };
     }
-
-    html += createDay(dateObj)
-
-    slots[date].forEach((slot, i) => {
-      html += createSlot(slot)
-    })
-
-    html += '</td>'
-
-    dayOfWeek = (dayOfWeek + 1) % 7
-    if (dayOfWeek === 0) {
-      html = endWeek(html)
-      if (date !== dates[dates.length - 1]) {
-        html = startNewWeek(html)
-      }
-    }
-
-    lastDate = date
-  })
-
-  html = endMonth(html, dayOfWeek)
-
-  return html
+  }
 }
 
+function createDayGroup(worksheet, rowIndex, dayColumnStart, dayColumnEnd, dateObj) {
+  if (!worksheet.getCell(rowIndex, dayColumnStart).isMerged) {
+    const cell = worksheet.getCell(rowIndex, dayColumnStart);
 
-createCalendar(2024).then((slots) => {
-  const html = slotsToHTML(slots)
-  document.getElementById('calendar').innerHTML = html
+    worksheet.mergeCells(rowIndex, dayColumnStart, rowIndex, dayColumnEnd);
+    worksheet.getRow(rowIndex).height = 50;
 
-  createExcelFile(slots)
-})
+    cell.value = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    cell.font = {
+      size: 16,
+      bold: true,
+      italic: true
+    };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center'
+    };
 
-async function createExcelFile(slots) {
+  }
+}
+
+function fillSlots(worksheet, rowIndex, dayColumnStart, slotArray, doctors) {
+  for (let i = 0; i < 4; i++) {
+    const doctorsRequired = slotArray[i].doctorsRequired;
+
+    worksheet.getCell(rowIndex + 1, dayColumnStart + i).value = `${slotArray[i].start}-${slotArray[i].end}`;
+
+    for (let j = 0; j < doctorsRequired; j++) {
+      const cell = worksheet.getCell(rowIndex + 2 + j, dayColumnStart + i);
+
+      cell.value = `Doctor ${j + 1}`;
+      cell.dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`"${doctors.join(',')}"`]
+      };
+    }
+  }
+}
+
+function applyBorderToDay(worksheet, rowIndex, dayColumnStart, dayColumnEnd) {
+  const borderStyle = { style: 'thin' };
+
+  for (let i = rowIndex; i < rowIndex + 6; i++) {
+    for (let j = dayColumnStart; j <= dayColumnEnd; j++) {
+      const cell = worksheet.getCell(i, j);
+
+      cell.border = {
+        top: i === rowIndex ? borderStyle : null,
+        left: j === dayColumnStart ? borderStyle : null,
+        bottom: i === rowIndex + 5 ? borderStyle : null,
+        right: j === dayColumnEnd ? borderStyle : null
+      };
+    }
+  }
+}
+
+function mergeRemainingCells(worksheet, rowIndex, dayColumnStart, slotArray) {
+  for (let i = 0; i < 4; i++) {
+    const doctorsRequired = slotArray[i].doctorsRequired;
+
+    if (doctorsRequired < 4) {
+      const mergeStart = rowIndex + 2 + doctorsRequired;
+      const mergeEnd = rowIndex + 5;
+      const cell = worksheet.getCell(mergeStart, dayColumnStart + i);
+
+      worksheet.mergeCells(mergeStart, dayColumnStart + i, mergeEnd, dayColumnStart + i);
+
+      cell.alignment = {
+        vertical: 'top',
+        horizontal: 'left'
+      };
+    }
+  }
+}
+
+async function createExcelFile(slots, selectedMonths = null) {
   const workbook = new ExcelJS.Workbook();
   let worksheet;
   let currentMonth;
-  let rowIndex = 2; // Start from the second row to leave space for headers
-  let columnWidths = Array(28).fill(10); // 7 days * 4 columns per day
+  let rowIndex = 2;
 
-  // Convert slots into an array of objects and sort by date
   const data = Object.entries(slots)
     .map(([date, slots]) => ({ date, slots }))
     .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -325,83 +354,56 @@ async function createExcelFile(slots) {
     const month = dateObj.getMonth();
     const dayOfWeek = (dateObj.getDay() + 6) % 7;
 
-    // Create a new worksheet for each month
-    if (month !== currentMonth) {
-      currentMonth = month;
-      const monthYear = dateObj.toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
-      worksheet = workbook.addWorksheet(monthYear);
-      rowIndex = 2; // Reset row index
-
-      // Add headers for the days of the week
-      const daysOfWeek = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-      for (let i = 0; i < 7; i++) {
-        const startColumn = (i * 4) + 1;
-        const endColumn = startColumn + 3;
-        // Check if cells are already merged
-        if (!worksheet.getCell(1, startColumn).isMerged) {
-          worksheet.mergeCells(1, startColumn, 1, endColumn);
-          const cell = worksheet.getCell(1, startColumn);
-          cell.value = daysOfWeek[i];
-          // Set fill and font color
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF4C68AF' }
-          };
-          cell.font = {
-            color: { argb: 'FFFFFFFF' },
-            size: 24,
-          };
-        }
-      }
+    if (selectedMonths && !selectedMonths.includes(month)) {
+      continue;
     }
 
-    // For each day, create a group of 4 columns and 6 rows
+    if (month !== currentMonth) {
+      const monthYear = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+
+      currentMonth = month;
+      worksheet = workbook.addWorksheet(monthYear);
+      rowIndex = 2;
+
+      createHeaders(worksheet);
+    }
+
     const dayColumnStart = (dayOfWeek * 4) + 1;
     const dayColumnEnd = dayColumnStart + 3;
 
-    // In the first row of the group, merge the 4 cells and write the day
-    if (!worksheet.getCell(rowIndex, dayColumnStart).isMerged) {
-      worksheet.mergeCells(rowIndex, dayColumnStart, rowIndex, dayColumnEnd);
-      const cell = worksheet.getCell(rowIndex, dayColumnStart);
-      cell.value = dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
-      // Set font size, alignment, bold, italic, and cell height
-      cell.font = {
-        size: 16,
-        bold: true,
-        italic: true
-      };
-      cell.alignment = {
-        vertical: 'middle',
-        horizontal: 'center'
-      };
+    createDayGroup(worksheet, rowIndex, dayColumnStart, dayColumnEnd, dateObj);
 
-      worksheet.getRow(rowIndex).height = 50;
-    }
-
-    // In the second row of the group, write the 4 hours period in each cell
-    for (let i = 0; i < 4; i++) {
-      worksheet.getCell(rowIndex + 1, dayColumnStart + i).value = `${slotArray[i].start}-${slotArray[i].end}`;
-    }
-
-    // In the remaining rows of the group, fill as many cells as the doctorsRequired number for each hour period
     for (let i = 0; i < 4; i++) {
       const doctorsRequired = slotArray[i].doctorsRequired;
+
+      worksheet.getCell(rowIndex + 1, dayColumnStart + i).value = `${slotArray[i].start}-${slotArray[i].end}`;
+
       for (let j = 0; j < doctorsRequired; j++) {
         worksheet.getCell(rowIndex + 2 + j, dayColumnStart + i).value = `Doctor ${j + 1}`;
       }
     }
 
-    // Move to the next group of rows after Sunday
+    fillSlots(worksheet, rowIndex, dayColumnStart, slotArray, DOCTOR_NAMES);
+    mergeRemainingCells(worksheet, rowIndex, dayColumnStart, slotArray);
+    applyBorderToDay(worksheet, rowIndex, dayColumnStart, dayColumnEnd);
+
+    worksheet.columns.forEach(column => {
+      let maxLength = 0;
+      column.eachCell({ includeEmpty: true }, cell => {
+        const columnLength = cell.value ? cell.value.toString().length : 10;
+        if (columnLength > maxLength) {
+          maxLength = columnLength;
+        }
+      });
+      column.width = maxLength < 10 ? 10 : maxLength;
+    });
+
     if (dayOfWeek === 6) {
       rowIndex += 6;
     }
   }
 
-  // Adjust column widths
-  worksheet.columns = columnWidths.map(width => ({ width }));
-
-  // Download the file
   const file = await workbook.xlsx.writeBuffer();
+
   saveAs(new Blob([file]), 'Schedule.xlsx');
 }
