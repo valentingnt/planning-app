@@ -17,6 +17,12 @@ body {
   box-shadow: 5px 5px 0px 0px #2B2B2B;
 }
 
+@media (max-width: 768px) {
+  .header {
+    width: 95%;
+  }
+}
+
 h1,
 h2 {
   color: #2B2B2B;
