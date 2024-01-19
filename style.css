@@ -1,23 +1,25 @@
 body {
   font-family: Arial, sans-serif;
   padding: 20px;
-  background-color: #f5f5f5;
+  background-color: #FFFDF9;
   display: flex;
   flex-direction: column;
   align-items: center;
+  color: #2B2B2B;
 }
 
 .header {
   width: 80%;
-  background-color: #fff;
+  background-color: #FFFDF9;
   padding: 20px;
-  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
+  border-radius: 10px;
+  border: 2px solid #2B2B2B;
+  box-shadow: 5px 5px 0px 0px #2B2B2B;
 }
 
 h1,
 h2 {
-  color: #333;
+  color: #2B2B2B;
 }
 
 form {
@@ -32,32 +34,44 @@ form {
 input[type="text"] {
   padding: 10px;
   margin-bottom: 10px;
-  border: 1px solid #ddd;
+  border: 1px solid #2B2B2B;
   border-radius: 5px;
+  color: #2B2B2B;
+  background-color: #FFFDF9;
+  width: 80%;
+}
+
+pre {
+  white-space: pre-wrap;
 }
 
 input[type="button"] {
   padding: 10px 20px;
   border: none;
-  background-color: #007bff;
-  color: #fff;
+  background-color: #2B2B2B;
+  color: #FFFDF9;
   cursor: pointer;
   border-radius: 5px;
 }
 
 input[type="button"]:hover {
-  background-color: #0056b3;
+  background-color: #1A1A1A;
 }
 
 button {
   padding: 10px 20px;
   border: none;
-  background-color: #28a745;
-  color: #fff;
+  background-color: #2B2B2B;
+  color: #FFFDF9;
   cursor: pointer;
   border-radius: 5px;
 }
 
 button:hover {
-  background-color: #218838;
+  background-color: #1A1A1A;
+}
+
+.button-container {
+  display: flex;
+  justify-content: center;
 }
